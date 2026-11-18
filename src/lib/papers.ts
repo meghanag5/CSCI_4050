@@ -9,19 +9,23 @@ export type Paper = {
 export const TOPICS = [
   {
     name: "Artificial Intelligence",
-    description: "Language models, agents, and machine reasoning.",
+    description: "Language models, computer vision, agents, and machine learning.",
+    filter: "topics.subfield.id:1702|1707",
   },
   {
     name: "Medicine",
-    description: "Clinical studies, treatments, and public health.",
+    description: "Clinical research, treatments, and public health.",
+    filter: "topics.field.id:27",
   },
   {
     name: "Biotechnology",
-    description: "Genetics, protein design, and lab methods.",
+    description: "Biotechnology and applied microbial research.",
+    filter: "topics.subfield.id:1305|2402",
   },
   {
     name: "Physics",
-    description: "Quantum systems, materials, and astrophysics.",
+    description: "Quantum systems, materials, particles, and astronomy.",
+    filter: "topics.field.id:31",
   },
 ];
 
