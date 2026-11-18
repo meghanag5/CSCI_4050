@@ -290,6 +290,15 @@ function DigestSettings({ initial, boards, topics }: { initial: Digest; boards: 
 
         <div className="buttons">
           <button className="button button-red" onClick={() => save()} disabled={busy}>Save settings</button>
+          <button
+            className="button"
+            disabled={busy}
+            onClick={async () => {
+              if (await save()) window.open("/api/digest/preview", "_blank");
+            }}
+          >
+            Preview email
+          </button>
           <button className="button" onClick={sendNow} disabled={busy}>
             {busy ? "Sending..." : "Send me one now"}
           </button>
