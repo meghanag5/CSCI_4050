@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
 type SavedPaper = {
@@ -23,16 +23,46 @@ type FeedResponse = {
 };
 
 export default function FeedPage() {
-  const params = useParams<{ topic: string }>();
-  const topic = decodeURIComponent(params.topic);
-
-  // Reset the feed when navigating between subjects.
-  return <ResearchFeed key={topic} topic={topic} />;
+  return (
+    <Suspense>
+      <FeedRoute />
+    </Suspense>
+  );
 }
 
-function ResearchFeed({ topic }: { topic: string }) {
-  const [draft, setDraft] = useState("");
-  const [query, setQuery] = useState("");
+function FeedRoute() {
+  const params = useParams<{ topic: string }>();
+  const searchParams = useSearchParams();
+  const topic = decodeURIComponent(params.topic);
+  // A subject board opens this same feed with its keywords filled in.
+  const initialQuery = searchParams.get("q") ?? "";
+  const board = searchParams.get("board") ?? "";
+
+  // Reset the feed when navigating between subjects or boards.
+  return (
+    <ResearchFeed
+      key={`${topic}|${initialQuery}|${board}`}
+      topic={topic}
+      initialQuery={initialQuery}
+      board={board}
+    />
+  );
+}
+
+function ResearchFeed({
+  topic,
+  initialQuery,
+  board,
+}: {
+  topic: string;
+  initialQuery: string;
+  board: string;
+}) {
+  const router = useRouter();
+  const [draft, setDraft] = useState(initialQuery);
+  const [query, setQuery] = useState(initialQuery);
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [days, setDays] = useState("90");
   const [cursor, setCursor] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -110,6 +140,37 @@ function ResearchFeed({ topic }: { topic: string }) {
     return () => controller.abort();
   }, [topic, query, days, cursor, refresh]);
 
+  useEffect(() => {
+    fetch("/api/auth/me", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((data) => {
+        setLoggedIn(!!data.user);
+        setFavorites(new Set(data.favorites ?? []));
+      })
+      .catch(() => {});
+  }, []);
+
+  async function toggleFavorite(paperId: string) {
+    if (!loggedIn) {
+      router.push(`/login?next=${encodeURIComponent(location.pathname + location.search)}`);
+      return;
+    }
+
+    const saved = favorites.has(paperId);
+    const next = new Set(favorites);
+    if (saved) next.delete(paperId);
+    else next.add(paperId);
+    setFavorites(next); // update right away; undo below if the request fails
+
+    const response = await fetch("/api/favorites", {
+      method: saved ? "DELETE" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paperId }),
+    }).catch(() => null);
+
+    if (!response?.ok) setFavorites(favorites);
+  }
+
   function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setCursor(null);
@@ -126,8 +187,10 @@ function ResearchFeed({ topic }: { topic: string }) {
     <>
       <div className="feed-header">
         <div>
-          <p className="label">Recent research · Newest first</p>
-          <h1>{topic}</h1>
+          <p className="label">
+            {board ? `Your board · ${topic}` : "Recent research · Newest first"}
+          </p>
+          <h1>{board || topic}</h1>
         </div>
         <div className="buttons">
           <Link href="/" className="button">
@@ -213,11 +276,20 @@ function ResearchFeed({ topic }: { topic: string }) {
               "No abstract available."}
           </p>
 
-          {paper.url && (
-            <a href={paper.url} target="_blank" rel="noreferrer">
-              Read original paper →
-            </a>
-          )}
+          <div className="paper-actions">
+            {paper.url && (
+              <a href={paper.url} target="_blank" rel="noreferrer">
+                Read original paper →
+              </a>
+            )}
+            <button
+              className={`button save${favorites.has(paper._id) ? " saved" : ""}`}
+              onClick={() => toggleFavorite(paper._id)}
+              aria-pressed={favorites.has(paper._id)}
+            >
+              {favorites.has(paper._id) ? "★ Saved" : "☆ Save"}
+            </button>
+          </div>
         </article>
       ))}
 
